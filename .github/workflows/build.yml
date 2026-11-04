@@ -72,14 +72,11 @@ jobs:
           export LLVM=1
           export LLVM_IAS=0
 
-          make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
-          echo "=== merging fragments (LineageOS TARGET_KERNEL_CONFIG order) ==="
-          ARCH=arm64 scripts/kconfig/merge_config.sh -m -O out out/.config \
-            arch/arm64/configs/vendor/xiaomi/sm8150-common.config \
-            arch/arm64/configs/vendor/xiaomi/raphael.config
+          echo "=== use PHONE REAL config (from /proc/config.gz) ==="
+          cp ../phone_build.config out/.config
           make O=out ARCH=arm64 olddefconfig
           echo "=== verify key configs ==="
-          grep -E "CONFIG_MACH_XIAOMI_RAPHAEL|CONFIG_MACH_XIAOMI_SM8150|CONFIG_MFD_SPK_ID|CONFIG_QCA_CLD_WLAN|CONFIG_SND_SOC_CS35L41" out/.config || echo "WARN: some configs missing"
+          grep -E "CONFIG_MACH_XIAOMI_RAPHAEL|CONFIG_MACH_XIAOMI_SM8150|CONFIG_MFD_SPK_ID|CONFIG_QCA_CLD_WLAN|CONFIG_MODULE_SIG_FORCE" out/.config || echo "WARN"
           echo "=== inject config check ==="
           grep -n "FRAME_INJECTION" drivers/staging/qcacld-3.0/configs/default_defconfig || echo "WARN: inject config not set"
           set +e
