@@ -73,6 +73,7 @@ jobs:
           export LLVM_IAS=0
 
           echo "=== use PHONE REAL config (from /proc/config.gz) ==="
+          mkdir -p out
           cp ../phone_build.config out/.config
           make O=out ARCH=arm64 olddefconfig
           echo "=== verify key configs ==="
