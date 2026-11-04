@@ -83,7 +83,14 @@ jobs:
           make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
           echo "=== inject config check ==="
           grep "FRAME_INJECTION" out/.config || echo "WARN: inject config not set"
-          make O=out ARCH=arm64 -j$(nproc) 2>&1 | tail -80
+          set +e
+          make O=out ARCH=arm64 -j$(nproc) 2>&1 | tee ../build-full.log
+          MAKE_RC=${PIPESTATUS[0]}
+          set -e
+          echo "=== make exit code: $MAKE_RC ==="
+          echo "=== errors found: ==="
+          grep -nE "error:|Error [0-9]" ../build-full.log | head -30 || echo "(none matched)"
+          exit $MAKE_RC
 
       - name: Package artifacts
         if: always()
@@ -102,6 +109,7 @@ jobs:
             cp kernel/out/drivers/staging/qcacld-3.0/wlan.ko artifacts/
           fi
           find kernel/out -name "wlan.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
+          [ -f build-full.log ] && cp build-full.log artifacts/ || true
           ls -lh artifacts/ || echo "no artifacts"
 
       - name: Upload artifacts
