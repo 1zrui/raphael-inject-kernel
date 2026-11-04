@@ -81,8 +81,13 @@ jobs:
           export LLVM_IAS=0
 
           make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
+          echo "=== merging raphael.config fragment (this is what LineageOS does) ==="
+          ARCH=arm64 scripts/kconfig/merge_config.sh -m -O out out/.config arch/arm64/configs/vendor/xiaomi/raphael.config
+          make O=out ARCH=arm64 olddefconfig
+          echo "=== verify raphael configs ==="
+          grep -E "CONFIG_MACH_XIAOMI_RAPHAEL|CONFIG_MACH_XIAOMI_SM8150|CONFIG_SND_SOC_CS35L41" out/.config || echo "WARN: raphael configs missing"
           echo "=== inject config check ==="
-          grep "FRAME_INJECTION" out/.config || echo "WARN: inject config not set"
+          grep "FRAME_INJECTION" drivers/staging/qcacld-3.0/configs/default_defconfig || echo "WARN: inject config not set"
           set +e
           # 只编译内核镜像 + raphael 相关设备树，跳过无关高通开发板 DTB
           make O=out ARCH=arm64 -j$(nproc) Image 2>&1 | tee ../build-img.log
