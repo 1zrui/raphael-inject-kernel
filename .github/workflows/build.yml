@@ -46,31 +46,23 @@ jobs:
           chmod +x tc/clang/bin/* 2>/dev/null || true
           ./tc/clang/bin/clang --version | head -3
 
-      - name: Clone GCC toolchain
+      - name: Clone GCC toolchain (LLVM toolchain needs aarch64 binutils for objdump fallback)
+        continue-on-error: true
         run: |
           git clone --depth 1 -b lineage-19.1 \
             https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git tc/gcc64
           chmod +x tc/gcc64/bin/* 2>/dev/null || true
           ./tc/gcc64/bin/aarch64-linux-android-gcc --version | head -2
 
-      - name: Configure kernel
-        run: |
-          cd kernel
-          export PATH="$PWD/../tc/clang/bin:$PWD/../tc/gcc64/bin:$PATH"
-          export ARCH=arm64 SUBARCH=arm64
-          make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
-          echo "=== config check ==="
-          grep -E "FRAME_INJECTION" out/.config | head -5
-
       - name: Build kernel
         run: |
           cd kernel
-          export PATH="$PWD/../tc/clang/bin:$PWD/../tc/gcc64/bin:$PATH"
+          export PATH="$PWD/../tc/clang/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
-          export CROSS_COMPILE="$PWD/../tc/gcc64/bin/aarch64-linux-android-"
           export CC="clang"
           export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
           export LD="ld.lld"
           export AR="llvm-ar"
           export NM="llvm-nm"
@@ -81,26 +73,22 @@ jobs:
           export LLVM_IAS=0
 
           make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
-          echo "=== merging raphael.config fragment (this is what LineageOS does) ==="
-          ARCH=arm64 scripts/kconfig/merge_config.sh -m -O out out/.config arch/arm64/configs/vendor/xiaomi/raphael.config
+          echo "=== merging fragments (LineageOS TARGET_KERNEL_CONFIG order) ==="
+          ARCH=arm64 scripts/kconfig/merge_config.sh -m -O out out/.config \
+            arch/arm64/configs/vendor/xiaomi/sm8150-common.config \
+            arch/arm64/configs/vendor/xiaomi/raphael.config
           make O=out ARCH=arm64 olddefconfig
-          echo "=== verify raphael configs ==="
-          grep -E "CONFIG_MACH_XIAOMI_RAPHAEL|CONFIG_MACH_XIAOMI_SM8150|CONFIG_SND_SOC_CS35L41" out/.config || echo "WARN: raphael configs missing"
+          echo "=== verify key configs ==="
+          grep -E "CONFIG_MACH_XIAOMI_RAPHAEL|CONFIG_MACH_XIAOMI_SM8150|CONFIG_MFD_SPK_ID|CONFIG_QCA_CLD_WLAN|CONFIG_SND_SOC_CS35L41" out/.config || echo "WARN: some configs missing"
           echo "=== inject config check ==="
-          grep "FRAME_INJECTION" drivers/staging/qcacld-3.0/configs/default_defconfig || echo "WARN: inject config not set"
+          grep -n "FRAME_INJECTION" drivers/staging/qcacld-3.0/configs/default_defconfig || echo "WARN: inject config not set"
           set +e
-          # 只编译内核镜像 + raphael 相关设备树，跳过无关高通开发板 DTB
           make O=out ARCH=arm64 -j$(nproc) Image 2>&1 | tee ../build-img.log
           RC_IMG=${PIPESTATUS[0]}
           echo "=== Image build rc: $RC_IMG ==="
-          make O=out ARCH=arm64 -j$(nproc) qcom/raphael-sm8150-overlay.dtbo 2>&1 | tee ../build-dtbo.log
-          RC_DTBO=${PIPESTATUS[0]}
-          echo "=== dtbo build rc: $RC_DTBO ==="
           set -e
           echo "=== errors in image build ==="
-          grep -nE "error:|Error [0-9]" ../build-img.log | head -20 || echo "(none)"
-          echo "=== errors in dtbo build ==="
-          grep -nE "error:|Error [0-9]" ../build-dtbo.log | head -20 || echo "(none)"
+          grep -nE "error:|undefined symbol|Error [0-9]" ../build-img.log | head -25 || echo "(none)"
           if [ $RC_IMG -ne 0 ]; then exit $RC_IMG; fi
 
       - name: Package artifacts
