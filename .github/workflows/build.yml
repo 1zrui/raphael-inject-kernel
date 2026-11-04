@@ -2,8 +2,6 @@ name: Build Raphael Kernel with Frame Injection
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   build:
@@ -40,29 +38,34 @@ jobs:
           ls -l drivers/staging/qcacld-3.0/core/wma/src/wma_frame_inject.c
           grep -c "FRAME_INJECTION" drivers/staging/qcacld-3.0/configs/default_defconfig
 
-      - name: Download toolchain (AOSP clang)
+      - name: Clone clang toolchain
         run: |
           mkdir -p tc
-          cd tc
-          # AOSP clang r353983c - standard for 4.14 kernels
-          curl -sL -o clang.tar.gz \
-            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r353983c.tar.gz
-          tar xzf clang.tar.gz
-          ls clang-r353983c/bin/clang || echo "clang missing"
-          ./clang-r353983c/bin/clang --version | head -2
+          git clone --depth 1 -b lineage-20.0 \
+            https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git tc/clang
+          chmod +x tc/clang/bin/* 2>/dev/null || true
+          ./tc/clang/bin/clang --version | head -3
 
-      - name: Download ARM64 GCC cross compiler
+      - name: Clone GCC toolchain
         run: |
-          cd tc
-          curl -sL -o gcc.tar.gz \
-            https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/master.tar.gz
-          mkdir -p gcc64 && tar xzf gcc.tar.gz -C gcc64
-          ls gcc64/bin/aarch64-linux-android-gcc || echo "gcc missing"
+          git clone --depth 1 -b lineage-19.1 \
+            https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git tc/gcc64
+          chmod +x tc/gcc64/bin/* 2>/dev/null || true
+          ./tc/gcc64/bin/aarch64-linux-android-gcc --version | head -2
+
+      - name: Configure kernel
+        run: |
+          cd kernel
+          export PATH="$PWD/../tc/clang/bin:$PWD/../tc/gcc64/bin:$PATH"
+          export ARCH=arm64 SUBARCH=arm64
+          make O=out ARCH=arm64 vendor/sm8150-perf_defconfig
+          echo "=== config check ==="
+          grep -E "FRAME_INJECTION" out/.config | head -5
 
       - name: Build kernel
         run: |
           cd kernel
-          export PATH="$PWD/../tc/clang-r353983c/bin:$PWD/../tc/gcc64/bin:$PATH"
+          export PATH="$PWD/../tc/clang/bin:$PWD/../tc/gcc64/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           export CROSS_COMPILE="$PWD/../tc/gcc64/bin/aarch64-linux-android-"
