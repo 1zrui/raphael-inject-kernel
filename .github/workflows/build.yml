@@ -57,12 +57,12 @@ jobs:
       - name: Build kernel
         run: |
           cd kernel
-          export PATH="$PWD/../tc/clang/bin:$PATH"
+          export PATH="$PWD/../tc/clang/bin:$PWD/../tc/gcc64/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           export CC="clang"
           export CLANG_TRIPLE="aarch64-linux-gnu-"
-          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CROSS_COMPILE="$PWD/../tc/gcc64/bin/aarch64-linux-android-"
           export LD="ld.lld"
           export AR="llvm-ar"
           export NM="llvm-nm"
